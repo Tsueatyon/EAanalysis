@@ -1,0 +1,4 @@
+*.csv
+/Backtest result analysis/
+/Proceessed trade record/
+/storages/
