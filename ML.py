@@ -1,11 +1,13 @@
-import pandas as pd
 import numpy as np
+import pandas as pd
+
 from sklearn.svm import SVC
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.inspection import permutation_importance
 from mlxtend.frequent_patterns import apriori, association_rules
+from sklearn.linear_model import LogisticRegression
 # Load preprocessed data
 trades_paired = pd.read_csv('preprocessed_trading_record.csv', parse_dates=['Entry_Time', 'Exit_Time', '4H_Candle', '1D_Candle'])
 
@@ -13,22 +15,25 @@ trades_paired = pd.read_csv('preprocessed_trading_record.csv', parse_dates=['Ent
 if trades_paired[['ATR', 'RSI', 'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week']].isna().any().any():
     print("Warning: Null values in features. Dropping rows with nulls.")
     trades_paired = trades_paired.dropna(subset=['ATR', 'RSI', 'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week'])
+    raise ValueError("Null (missing) value encountered!")
 
-# Create target variable
+
 trades_paired['Win'] = trades_paired['Profit'] > 0
-
 # Check dataset size and class imbalance
 print("Dataset Size:", trades_paired.shape)
 print("Class Distribution:\n", trades_paired['Win'].value_counts(normalize=True))
 
-# Prepare features
-features = trades_paired[['ATR', 'RSI', 'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week']]
+features = trades_paired[['ATR', 'RSI', 'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week','SMMA_Diff','ATR_RSI_Interaction','Price_SMMAs_Intersection','AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth', 'Alligator_Lips',
+                 'Gator_Upper', 'Gator_Lower', 'AO', 'Fractal_Signal']]
 features = pd.get_dummies(features, columns=['Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week'])
 target = trades_paired['Win']
 
 # Scale numerical features
+
 scaler = StandardScaler()
-numerical_cols = ['ATR', 'RSI', 'Dist_to_High']
+numerical_cols = ['ATR', 'RSI', 'Dist_to_High',
+                  'ATR_RSI_Interaction', 'SMMA_Diff', 'AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth',
+                  'Alligator_Lips', 'Gator_Upper', 'Gator_Lower', 'AO']
 features[numerical_cols] = scaler.fit_transform(features[numerical_cols])
 
 # Split data
@@ -68,3 +73,10 @@ apriori_data = pd.get_dummies(trades_paired[['Trend', 'Volatility', 'Momentum', 
 frequent_itemsets = apriori(apriori_data, min_support=0.1, use_colnames=True)
 rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.6)
 print("Association Rules:\n", rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by='lift', ascending=False))
+
+lr = LogisticRegression(random_state=42, class_weight='balanced')
+lr.fit(X_train, y_train)
+y_pred_lr = lr.predict(X_test)
+print("Logistic Regression Classification Report:\n", classification_report(y_test, y_pred_lr))
+lr_importance = pd.Series(np.abs(lr.coef_[0]), index=features.columns).sort_values(ascending=False)
+print("Logistic Regression Feature Importance:\n", lr_importance)
