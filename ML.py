@@ -23,16 +23,16 @@ trades_paired['Win'] = trades_paired['Profit'] > 0
 print("Dataset Size:", trades_paired.shape)
 print("Class Distribution:\n", trades_paired['Win'].value_counts(normalize=True))
 
-features = trades_paired[['ATR', 'RSI', 'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week','SMMA_Diff','ATR_RSI_Interaction','Price_SMMAs_Intersection','AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth', 'Alligator_Lips',
-                 'Gator_Upper', 'Gator_Lower', 'AO', 'Fractal_Signal']]
-features = pd.get_dummies(features, columns=['Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week'])
+features = trades_paired[['ATR',  'Dist_to_High', 'Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week','SMMA_Diff','ATR_RSI_Interaction','Price_SMMAs_Intersection','AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth', 'Alligator_Lips',
+                 'Gator_Upper', 'Gator_Lower', 'AO', 'Fractal_Signal','Candle_Sequence','Volume']]
+features = pd.get_dummies(features, columns=['Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week','Candle_Sequence'])
 target = trades_paired['Win']
 
 # Scale numerical features
 
 scaler = StandardScaler()
-numerical_cols = ['ATR', 'RSI', 'Dist_to_High',
-                  'ATR_RSI_Interaction', 'SMMA_Diff', 'AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth',
+numerical_cols = ['ATR',  'Dist_to_High',
+                  'ATR_RSI_Interaction', 'SMMA_Diff', 'AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth','Volume',
                   'Alligator_Lips', 'Gator_Upper', 'Gator_Lower', 'AO']
 features[numerical_cols] = scaler.fit_transform(features[numerical_cols])
 
@@ -60,19 +60,6 @@ y_pred_rf = rf.predict(X_test)
 print("Random Forest Classification Report:\n", classification_report(y_test, y_pred_rf))
 rf_importance = pd.Series(rf.feature_importances_, index=features.columns).sort_values(ascending=False)
 print("Random Forest Feature Importance:\n", rf_importance)
-
-
-# Apriori for Association Rules
-# Discretize numerical features for Apriori
-trades_paired['ATR_Bin'] = pd.qcut(trades_paired['ATR'], q=3, labels=['Low', 'Medium', 'High'])
-trades_paired['RSI_Bin'] = pd.qcut(trades_paired['RSI'], q=3, labels=['Low', 'Medium', 'High'])
-trades_paired['Dist_to_High_Bin'] = pd.qcut(trades_paired['Dist_to_High'], q=3, labels=['Close', 'Medium', 'Far'])
-
-# Prepare data for Apriori
-apriori_data = pd.get_dummies(trades_paired[['Trend', 'Volatility', 'Momentum', 'Session', 'Day_of_Week', 'ATR_Bin', 'RSI_Bin', 'Dist_to_High_Bin', 'Win']])
-frequent_itemsets = apriori(apriori_data, min_support=0.1, use_colnames=True)
-rules = association_rules(frequent_itemsets, metric='confidence', min_threshold=0.6)
-print("Association Rules:\n", rules[['antecedents', 'consequents', 'support', 'confidence', 'lift']].sort_values(by='lift', ascending=False))
 
 lr = LogisticRegression(random_state=42, class_weight='balanced')
 lr.fit(X_train, y_train)

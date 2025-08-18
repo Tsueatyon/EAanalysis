@@ -34,6 +34,74 @@ def calculate_fractals(df, window=2):
     return fractals
 
 
+# Custom function to identify candlestick patterns and sequence
+def calculate_candle_sequence(df, lookback=10):
+    sequences = []
+    atr = df['ATR']
+
+    for i in range(len(df)):
+        if i < lookback:
+            sequences.append(np.nan)  # Not enough bars for sequence
+            continue
+
+        lookback_df = df.iloc[i - lookback:i + 1]
+        pattern_sequence = []
+
+        for j in range(len(lookback_df)):
+            close = lookback_df['Close'].iloc[j]
+            open_price = lookback_df['Open'].iloc[j]
+            high = lookback_df['High'].iloc[j]
+            low = lookback_df['Low'].iloc[j]
+            atr_val = lookback_df['ATR'].iloc[j] if not pd.isna(lookback_df['ATR'].iloc[j]) else 0.01
+            body = abs(close - open_price)
+            upper_wick = high - max(close, open_price)
+            lower_wick = min(close, open_price) - low
+            is_bullish = close > open_price
+
+            # Determine trend context (simple 3-bar trend for hammer/reverse expansion)
+            if j >= 3:
+                prev_trend = lookback_df['Close'].iloc[j - 3:j].diff().mean()
+                is_downtrend = prev_trend < 0
+            else:
+                is_downtrend = False
+
+            # Define patterns
+            if body > 0.5 * atr_val:
+                pattern = f"{'Bullish' if is_bullish else 'Bearish'}_Expansion"
+            elif body < 0.1 * atr_val:
+                pattern = "Doji"
+            elif (body < 0.3 * atr_val and lower_wick > 2 * body and upper_wick < 0.5 * body and is_downtrend):
+                pattern = f"{'Bullish' if is_bullish else 'Bearish'}_Hammer"
+            elif (j > 0 and body > 0.5 * atr_val and
+                  (is_bullish != (lookback_df['Close'].iloc[j - 1] > lookback_df['Open'].iloc[j - 1]))):
+                pattern = f"{'Bullish' if is_bullish else 'Bearish'}_Reverse_Expansion"
+            else:
+                pattern = f"{'Bullish' if is_bullish else 'Bearish'}_Neutral"
+
+            pattern_sequence.append(pattern)
+
+        # Compress duplicate subsequences and concatenate Expansion with Neutral
+        compressed_sequence = []
+        prev_pattern = None
+        for pattern in pattern_sequence[::-1]:  # Reverse to have most recent first
+            # Skip if same as previous pattern
+            if pattern == prev_pattern:
+                continue
+            # Check for Expansion followed by Neutral of the same type
+            if (compressed_sequence and
+                    'Expansion' in compressed_sequence[-1] and
+                    'Neutral' in pattern and
+                    compressed_sequence[-1].split('_')[0] == pattern.split('_')[0]):
+                continue  # Skip Neutral, keep Expansion
+            compressed_sequence.append(pattern)
+            prev_pattern = pattern
+
+        # Create sequence string (most recent to oldest)
+        sequences.append("->".join(compressed_sequence))
+
+    return pd.Series(sequences, index=df.index, name='Candle_Sequence')
+
+
 # File paths
 trade_file = './Backtest result analysis/4.17t+direction.USDJPY.2024.8.1 - 2025.8.1.sellonly.csv'
 price_file = 'USDJPY/Backtest_Trades_OHLCV_USDJPY!.csv'
@@ -159,18 +227,17 @@ df_4h['Dist_to_Resistance'] = (df_4h['High_20'] - df_4h['Close']) / df_4h['High_
 df_4h['AD'] = AccDistIndexIndicator(df_4h['High'], df_4h['Low'], df_4h['Close'], df_4h['Volume']).acc_dist_index()
 df_4h['MFI'] = MFIIndicator(df_4h['High'], df_4h['Low'], df_4h['Close'], df_4h['Volume'], window=14).money_flow_index()
 
-# Calculate Alligator Indicator for H4 (normalized by ATR)
-df_4h['Alligator_Jaw'] = calculate_smma(df_4h['Close'], 13).shift(8) / df_4h['ATR']
-df_4h['Alligator_Teeth'] = calculate_smma(df_4h['Close'], 8).shift(5) / df_4h['ATR']
-df_4h['Alligator_Lips'] = calculate_smma(df_4h['Close'], 5).shift(3) / df_4h['ATR']
+# Calculate Alligator Indicator for H4
+df_4h['Alligator_Jaw'] = calculate_smma(df_4h['Close'], 13).shift(8)
+df_4h['Alligator_Teeth'] = calculate_smma(df_4h['Close'], 8).shift(5)
+df_4h['Alligator_Lips'] = calculate_smma(df_4h['Close'], 5).shift(3)
 
-# Calculate Gator Oscillator for H4 (normalized by ATR)
-df_4h['Gator_Upper'] = abs(df_4h['Alligator_Jaw'] - df_4h['Alligator_Teeth']) / df_4h['ATR']
-df_4h['Gator_Lower'] = abs(df_4h['Alligator_Teeth'] - df_4h['Alligator_Lips']) / df_4h['ATR']
+# Calculate Gator Oscillator for H4
+df_4h['Gator_Upper'] = abs(df_4h['Alligator_Jaw'] - df_4h['Alligator_Teeth'])
+df_4h['Gator_Lower'] = abs(df_4h['Alligator_Teeth'] - df_4h['Alligator_Lips'])
 
-# Calculate Awesome Oscillator for H4 (normalized by ATR)
-df_4h['AO'] = AwesomeOscillatorIndicator(df_4h['High'], df_4h['Low'], window1=5, window2=34).awesome_oscillator() / \
-              df_4h['ATR']
+# Calculate Awesome Oscillator for H4
+df_4h['AO'] = AwesomeOscillatorIndicator(df_4h['High'], df_4h['Low'], window1=5, window2=34).awesome_oscillator()
 
 # Calculate Fractals for H4
 df_4h['Fractal_Signal'] = calculate_fractals(df_4h, window=2)
@@ -178,8 +245,8 @@ df_4h['Fractal_Signal'] = calculate_fractals(df_4h, window=2)
 # Calculate SMMA12 and SMMA21
 df_4h['SMMA12'] = calculate_smma(df_4h['Close'], 12)
 df_4h['SMMA21'] = calculate_smma(df_4h['Close'], 21)
-# Calculate SMMA12-SMMA21 difference (normalized by ATR)
-df_4h['SMMA_Diff'] = (df_4h['SMMA12'] - df_4h['SMMA21']) / df_4h['ATR']
+# Calculate SMMA12-SMMA21 difference
+df_4h['SMMA_Diff'] = df_4h['SMMA12'] - df_4h['SMMA21']
 
 # Detect SMMA12/SMMA21 crossings
 df_4h['SMMA_Cross'] = 0
@@ -188,6 +255,9 @@ df_4h['SMMA_Cross'] = np.where(
     np.where((df_4h['SMMA12'].shift(1) >= df_4h['SMMA21'].shift(1)) & (df_4h['SMMA12'] < df_4h['SMMA21']), -1, 0)
     # Bearish cross
 )
+
+# Calculate candlestick sequence for H4
+df_4h['Candle_Sequence'] = calculate_candle_sequence(df_4h, lookback=10)
 
 # Map candles using merge_asof
 trades_paired = trades_paired.sort_values('Entry_Time')
@@ -199,12 +269,12 @@ if trades_paired.empty or df_4h.empty or df_1d.empty:
     raise ValueError("One or more DataFrames are empty before merging: "
                      f"trades_paired={len(trades_paired)}, df_4h={len(df_4h)}, df_1d={len(df_1d)}")
 
-# Map 4H candles and indicators
+# Map 4H candles and indicators, including Volume
 trades_paired = pd.merge_asof(
     trades_paired,
     df_4h[['Date', 'ATR', 'RSI', 'Dist_to_High', 'Dist_to_Support', 'Dist_to_Resistance', 'SMMA_Diff', 'SMMA_Cross',
            'AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth', 'Alligator_Lips', 'Gator_Upper', 'Gator_Lower', 'AO',
-           'Fractal_Signal']].rename(columns={'Date': '4H_Candle'}),
+           'Fractal_Signal', 'Candle_Sequence', 'Volume']].rename(columns={'Date': '4H_Candle'}),
     left_on='Entry_Time',
     right_on='4H_Candle',
     direction='backward'
@@ -242,6 +312,12 @@ trades_paired['Gator_Upper'] = trades_paired['4H_Candle'].map(df_4h.set_index('D
 trades_paired['Gator_Lower'] = trades_paired['4H_Candle'].map(df_4h.set_index('Date')['Gator_Lower'])
 trades_paired['AO'] = trades_paired['4H_Candle'].map(df_4h.set_index('Date')['AO'])
 trades_paired['Fractal_Signal'] = trades_paired['4H_Candle'].map(df_4h.set_index('Date')['Fractal_Signal'])
+trades_paired['Candle_Sequence'] = trades_paired['4H_Candle'].map(df_4h.set_index('Date')['Candle_Sequence'])
+trades_paired['Volume'] = trades_paired['4H_Candle'].map(df_4h.set_index('Date')['Volume'])
+
+# Set Candle_Sequence to NaN for the first entry
+if not trades_paired.empty:
+    trades_paired.iloc[0, trades_paired.columns.get_loc('Candle_Sequence')] = np.nan
 
 
 # Calculate Price_SMMAs_Intersection with new logic
@@ -307,12 +383,13 @@ features_cols = ['ATR', 'RSI', 'Dist_to_High', 'Dist_to_Support', 'Dist_to_Resis
                  'Is_Volatile_Hour',
                  'ATR_RSI_Interaction', 'Price_SMMAs_Intersection', 'Trend', 'Volatility', 'Momentum', 'Session',
                  'Day_of_Week', 'SMMA_Diff', 'AD', 'MFI', 'Alligator_Jaw', 'Alligator_Teeth', 'Alligator_Lips',
-                 'Gator_Upper', 'Gator_Lower', 'AO', 'Fractal_Signal']
+                 'Gator_Upper', 'Gator_Lower', 'AO', 'Fractal_Signal', 'Candle_Sequence', 'Volume']
 print("Null Counts:\n", trades_paired[features_cols].isna().sum())
 print("Final Paired Trades Shape:", trades_paired.shape)
 
-# Drop rows with null features
-trades_paired = trades_paired.dropna(subset=features_cols)
+# Drop rows with null features (excluding Candle_Sequence to allow NaN for first entry)
+features_cols_excl_sequence = [col for col in features_cols if col != 'Candle_Sequence']
+trades_paired = trades_paired.dropna(subset=features_cols_excl_sequence)
 
 if trades_paired.empty:
     raise ValueError(
