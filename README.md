@@ -75,6 +75,7 @@ All models use:
 -Class Distribution:
 Losing Trade    0.622378
 Winning Trade     0.377622
+
 SVM Classification Report:
                precision    recall  f1-score   support
 
@@ -82,6 +83,7 @@ SVM Classification Report:
         True       0.32      0.31      0.32        32
 
     accuracy                           0.50        86
+
 
 
 Random Forest Classification Report:
