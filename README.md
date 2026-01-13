@@ -72,11 +72,9 @@ All models use:
 - Ramdom forest performs the best. It has a 0.74 F1 score. The model is good at perdicting failure trade and average at predicting winning trade. The model's performance skewed towards failure trade as I rise the bar of support.
 - My interpretaiton is that the model is demostrating some trend of simply predicting everything is false. This is not a result of the ML process but the imperfectness from the algoritm and the fact that alpha factor of the market is constantly evolving. most indicators will contribute to loss trade because they don't hit the alpha factor.
 -   Dataset Size: (286, 39)
-Class Distribution:
- Win
-False    0.622378
-True     0.377622
-Name: proportion, dtype: float64
+-Class Distribution:
+Losing Trade    0.622378
+Winning Trade     0.377622
 SVM Classification Report:
                precision    recall  f1-score   support
 
@@ -84,8 +82,7 @@ SVM Classification Report:
         True       0.32      0.31      0.32        32
 
     accuracy                           0.50        86
-   macro avg       0.46      0.46      0.46        86
-weighted avg       0.50      0.50      0.50        86
+
 
 Random Forest Classification Report:
                precision    recall  f1-score   support
@@ -94,8 +91,6 @@ Random Forest Classification Report:
         True       0.52      0.34      0.42        32
 
     accuracy                           0.64        86
-   macro avg       0.60      0.58      0.58        86
-weighted avg       0.62      0.64      0.62        86
 
 Logistic Regression Classification Report:
                precision    recall  f1-score   support
@@ -104,9 +99,6 @@ Logistic Regression Classification Report:
         True       0.36      0.41      0.38        32
 
     accuracy                           0.51        86
-   macro avg       0.49      0.49      0.49        86
-weighted avg       0.52      0.51      0.52        86
-
 
 
 ## Key Highlights
@@ -118,13 +110,8 @@ weighted avg       0.52      0.51      0.52        86
 - **Reproducibility**: Uses random_state for consistent results
 
 ## Future Enhancements
-
 Potential improvements could include:
-- Hyperparameter tuning (GridSearchCV/RandomizedSearchCV)
-- Feature importance analysis
-- Cross-validation for more robust evaluation
-- Model persistence (save/load trained models)
-- Real-time prediction pipeline
-- Additional ensemble methods
+- Data augumentation
+- better feature engineering with better domain knowlege
 
 
